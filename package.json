@@ -1,0 +1,28 @@
+{
+  "name": "mcsc",
+  "version": "0.0.1",
+  "description": "MineCraft Server Controller",
+  "main": "index.js",
+  "scripts": {
+    "test": "test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cdecu/mcsc.git"
+  },
+  "keywords": [
+    "Minecraft",
+    "node",
+    "typescript"
+  ],
+  "author": "cdecu",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/cdecu/mcsc/issues"
+  },
+  "homepage": "https://github.com/cdecu/mcsc#readme",
+  "dependencies": {
+    "debug": "^2.2.0",
+    "nconf": "^0.8.4"
+  }
+}

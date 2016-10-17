@@ -1,0 +1,15 @@
+# IntelliJ project files
+.idea
+
+# Visual Studio Code
+.vscode
+
+# Sublime Text
+*.sublime-workspace
+
+# node_modules
+node_modules
+typings
+
+
+
