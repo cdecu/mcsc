@@ -11,5 +11,8 @@
 node_modules
 typings
 
+# Typescript compiled files
+**/*.map
+**/*.js
 
 
