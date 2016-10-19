@@ -7,11 +7,15 @@
  */
 export class Config {
     
-    public showHelp : boolean = false;
-    public hostname : string;
-    public port     : number;
-    public worldsDir: string;
-    public mcsjars  : string[];
+    private static readonly _savedKeys_ : string[] = ["port","worldsDir","mcsjars"];
+    
+    public showHelp  : boolean  = false;
+    public hostname  : string   = "localhost";
+    public welcomeMsg: string   = "Hello geek";
+    public port      : number   = 8080;
+    public worldsDir : string   = "~/worlds";
+    public worlds    : string[] = [];
+    public mcsjars   : string[] = [];
     
     constructor(public applog : any , public appRoot : string) {
 
@@ -20,19 +24,13 @@ export class Config {
         let path                = require('path');
         let configFile : string = nconf.get('configFile') || path.join(appRoot,"/config.json");
     
-        let os = require("os");
-        this.hostname = os.hostname();
-        this.port     = nconf.get('port')      || 8080;
-        this.worldsDir= nconf.get('worldsDir') || '~/worlds';
-        this.showHelp = nconf.get('help');
-    
-        console.log(nconf.stores.argv.help());
-        
+
+        // first load default from file
         applog('Load ' + configFile);
         try {
             if (fs.existsSync(configFile)) {
                 let obj = JSON.parse(fs.readFileSync(configFile, 'utf8'));
-                this.assign(obj);
+                this.assign(obj,Config._savedKeys_);
                 applog('.. ' + configFile + ' loaded !');
             } else {
                 applog('** ' + configFile + ' NOT Found !');
@@ -40,12 +38,20 @@ export class Config {
         catch (ex) {
             applog(ex.message);
             }
-    
+
+        // overide with argv
+        let os = require("os");
+        this.hostname = os.hostname();
+        this.port     = nconf.get('port')      || this.port;
+        this.worldsDir= nconf.get('worldsDir') || this.worldsDir;
+        this.showHelp = nconf.get('help')      || this.showHelp;
+        
+        // save new default to file
         if (nconf.get('saveConfig')) {
             applog('Save ' + configFile);
             try {
                 let fd = fs.openSync(configFile, 'w');
-                fs.writeSync(fd, JSON.stringify(this, ["port","worldsDir","mcsjars"], 2), 'utf-8');
+                fs.writeSync(fd, JSON.stringify(this,Config._savedKeys_,2), 'utf-8');
                 fs.close(fd);
                 applog('.. ' + configFile + ' saved !');
                 }
