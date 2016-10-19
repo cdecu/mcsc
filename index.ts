@@ -11,7 +11,7 @@ process.title = 'mcsc';
 
 // Load Config
 let te = new Config(applog,appRoot.toString());
-if (te.showHelp)
-    Config.showUsage();
+
+Config.showUsage();
 
 console.log(JSON.stringify(te, null, 6));
