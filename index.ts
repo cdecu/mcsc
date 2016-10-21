@@ -12,6 +12,6 @@ process.title = 'mcsc';
 // Load Config
 let te = new Config(applog,appRoot.toString());
 
-Config.showUsage();
-
-console.log(JSON.stringify(te, null, 6));
+te.commands.forEach((key) => {
+    console.log('%s %s',key.cmd,key.args);
+    });

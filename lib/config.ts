@@ -2,131 +2,189 @@
 // TO TEST @TraceClass({ tracePrefix: "mcsc" })
 
 
+export class Command {
+    public args : string[] = [];
+    constructor(public cmd : string) {
+    }
+}
+
 /**
  * configuration class. Config is loaded from argv and/or configFile
  */
 export class Config {
     
-    private static readonly _savedKeys_ : string[] = ["port","worldsDir","mcsjars"];
-    
-    public showHelp  : boolean  = false;
+    private static readonly _savedKeys_ : string[] = ["port",'welcomeMsg',"mcsjarsDir","worldsDir"];
+    private static readonly _commands_  : string[] = ["start","list","backup"];
+    public static verboseLevel : number = 0;
+
     public hostname  : string   = "localhost";
-    public welcomeMsg: string   = "Hello geek";
     public port      : number   = 8080;
+    public welcomeMsg: string   = "Hello geek";
+    public mcsjarsDir: string   = "~/servers";
+    public mcsjars   : string[] = [];
     public worldsDir : string   = "~/worlds";
     public worlds    : string[] = [];
-    public mcsjars   : string[] = [];
+    public version   : string   = '0.0.0';
+    public commands  : Command[] = [];
     
     constructor(public applog : any , public appRoot : string) {
 
         let fs                  = require('fs');
-        let nconf      : any    = Config.nconf();
         let path                = require('path');
-        let configFile : string = nconf.get('configFile') || path.join(appRoot,"/config.json");
+        let argv       : any    = Config.yargs();
+        let showHelp   : boolean= argv.help;
+        let configFile : string = argv.configFile || path.join(appRoot,"/config.json");
+        Config.verboseLevel=argv.logLevel;
     
-
+        // load version
+        let pjson = require('../package.json');
+        this.version =  pjson.version || this.version;
+        this.Debug('Version '+this.version);
+        
         // first load default from file
-        applog('Load ' + configFile);
+        this.Debug('Load configFile '+configFile);
         try {
             if (fs.existsSync(configFile)) {
                 let obj = JSON.parse(fs.readFileSync(configFile, 'utf8'));
                 this.assign(obj,Config._savedKeys_);
-                applog('.. ' + configFile + ' loaded !');
+                this.Debug('.. loaded !');
             } else {
-                applog('** ' + configFile + ' NOT Found !');
+                this.Debug('** ' + configFile + ' NOT Found !');
             }   }
         catch (ex) {
-            applog(ex.message);
+            this.Error(ex.message);
             }
 
         // overide with argv
         let os = require("os");
-        this.hostname = os.hostname();
-        this.port     = nconf.get('port')      || this.port;
-        this.worldsDir= nconf.get('worldsDir') || this.worldsDir;
-        this.showHelp = nconf.get('help')      || this.showHelp;
+        this.hostname  = os.hostname();
+        this.port      = argv.port       || this.port;
+        this.welcomeMsg= argv.welcomeMsg || this.welcomeMsg;
+        this.mcsjarsDir= argv.mcsjarsDir || this.mcsjarsDir;
+        this.worldsDir = argv.worldsDir  || this.worldsDir;
         
         // save new default to file
-        if (nconf.get('saveConfig')) {
-            applog('Save ' + configFile);
+        if (argv.saveConfig) {
+            this.Debug('Save configFile '+configFile);
             try {
                 let fd = fs.openSync(configFile, 'w');
                 fs.writeSync(fd, JSON.stringify(this,Config._savedKeys_,2), 'utf-8');
                 fs.close(fd);
-                applog('.. ' + configFile + ' saved !');
+                this.Debug('.. saved !');
                 }
             catch (ex) {
-                applog(ex.message);
+                this.Error(ex.message);
             }   }
     
-        if (nconf.get('showConfig')){
-            applog('showConfig');
-            console.log('\nConfig\n------');
-            console.log(JSON.stringify(this, null, 6));
-            }
+        // build commands list, default to Config._commands_[0]
+        let cmd : Command;
+        argv._.forEach((key) => {
+            if (!cmd || Config._commands_.includes(key)) {
+                cmd=new Command(key);
+                this.commands.push(cmd);
+            } else
+                cmd.args.push(key);
+            });
+        if (!this.commands || this.commands.length==0)
+            this.commands.push(new Command(Config._commands_[0]));
             
-        if (this.showHelp) {
-            applog('showHelp');
+        this.loadmcsJars();
+        this.loadWorlds();
+        
+        if (argv.showConfig){
+            console.log('\nConfig\n------');
+            console.log(JSON.stringify(this,Config._savedKeys_,2));
+            console.log('configFile: %s',configFile);
+            console.log('worlds: %s',JSON.stringify(this.worlds));
+            console.log('jars: %s',JSON.stringify(this.mcsjars));
+            console.log('');
+            }
+        
+        if (showHelp) {
+            this.Debug('Exit after show Help');
             console.log('\nByeBye\n');
             process.exit(0)
             }
+        
         }
     
     /**
      * Parse argv params
      * @returns {"nconf"}
      */
-    public static nconf():any {
-        let nconf   = require('nconf');
-        nconf
-            .argv({
-                    "p": {
+    public static yargs() : any {
+        let yargv = require('yargs');
+        let argv = yargv
+            .usage('Minecraft server controller \nUsage: $0 [options] <command>')
+            .example('$0 [options] list worlds')
+            .example('$0 [options] start')
+            //.command('list <objects...>','show objects')
+            //.command('start', 'start servers')
+            .option("p",{
                         "alias"    : 'port',
                         "describe" : 'Http Listening Port',
                         "type"     : 'number',
-                        "default"  :  8080
-                    },
-                    "w": {
-                        "alias"    : 'welcome',
+                        "global"   : true
+                    })
+            .option("w",{
+                        "alias"    : 'welcomeMsg',
                         "describe" : 'Welcome phrase',
-                        "default"  : 'Hello geek'
-                    },
-                    "h": {
-                        "alias"    : 'help',
-                        "describe" : 'Show this screen',
-                        "default"  :  false
-                    },
-                    "d": {
+                        "global"   : true
+                    })
+            .option("j",{
+                        "alias"    : 'mcsjarsDir',
+                        "describe" : 'Minecraft server jar directory',
+                        "global"   : true
+                    })
+            .option("d",{
                         "alias"    : 'worldsDir',
                         "describe" : 'Worlds directory',
-                        "default"  : '~/worlds'
-                    },
-                    "c": {
+                        "global"   : true
+            })
+            .option("c",{
                         "alias"    : 'configFile',
                         "describe" : 'Configuration file',
-                    },
-                    "s": {
+                        "global"   : true
+                    })
+            .option("s",{
                         "alias"    : 'saveConfig',
                         "describe" : 'Save Configuration file',
-                        "default"  :  false
-                    },
-                    "o": {
+                        "type"     : 'boolean',
+                        "global"   : true
+                    })
+            .option("o",{
                         "alias"    : 'showConfig',
                         "describe" : 'show Configuration',
-                        "default"  : false
-                    }   },
-                "Minecraft server Controler"
-            )
+                        "type"     : 'boolean',
+                        "global"   : true
+                    })
+            .option("h",{
+                        "alias"    : 'help',
+                        "describe" : 'Show this screen',
+                        "type"     : 'boolean',
+                        "global"   : true
+                    })
+            .count('logLevel').alias('l', 'logLevel')
+            .version().alias("v","version")
             .env({
                 "separator" : '__',
                 "whitelist" :['JAVA_HOME', 'JAVA_ROOT','configFile']
-            })
-            .defaults({
-                "blabla":"blabla"
-            });
-        return nconf;
+                })
+            .exitProcess(false)
+            .epilog('copyright 2016')
+            .argv;
+    
+        // exit after version
+        if (argv.version) {
+            process.exit(0)
+            }
+    
+        // always show help !
+        yargv.showHelp("log");
+            
+        return argv;
     }
-        
+    
         
     /**
      * simple copy only one level
@@ -163,12 +221,74 @@ export class Config {
     }
     
     /**
-     * show command argvs usage on console
+     * show debug message
+     * @param msg
      */
-    public static showUsage(): void {
-        let nconf : any = Config.nconf();
-        console.log(nconf.stores.argv.help());
+    public Debug(msg:string) : void {
+        if (this.applog)
+            this.applog(msg);
+        else
+        if (Config.verboseLevel > 0)
+            console.log(msg)
+    }
+    
+    /**
+     * show error message
+     * @param msg
+     */
+    public Error(msg:string) : void {
+        if (this.applog)
+            this.applog(msg);
+        else
+            console.log(msg);
+    }
+    
+    public static expandTilde(filepath:string) : string {
+        let home = require('os').homedir();
+        let path = require('path');
+        if (filepath.charCodeAt(0) === 126 /* ~ */) {
+            return home ? path.join(home, filepath.slice(1)) : filepath;
+        } else
+            return filepath;
         }
+    
+    public loadWorlds() : boolean {
+        this.Debug('load Worlds');
+        let dir : string = Config.expandTilde(this.worldsDir);
+        let fs = require('fs');
+        this.worlds = [];
+        try {
+            this.Debug('read dir '+dir);
+            fs.readdirSync(dir).forEach((f) =>{
+                // TODO Take subfolder
+                this.worlds.push(f);
+                });
+            this.Debug('.. loaded !');
+            return true;
+            }
+        catch (ex) {
+            this.Error(ex.message);
+            return false;
+        }   }
+
+    public loadmcsJars() : boolean {
+        this.Debug('load Jars');
+        let dir : string = Config.expandTilde(this.mcsjarsDir);
+        let fs = require('fs');
+        this.mcsjars = [];
+        try {
+            this.Debug('read dir '+dir);
+            fs.readdirSync(dir).forEach((f) =>{
+                // TODO Take only .jar
+                this.mcsjars.push(f);
+            });
+            this.Debug('.. loaded !');
+            return true;
+        }
+        catch (ex) {
+            this.Error(ex.message);
+            return false;
+        }   }
     
 }
 

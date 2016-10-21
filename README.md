@@ -10,11 +10,12 @@ cd mcsc
 npm init
 tsc init
 typings init 
-npm install debug nconf --save
+npm install debug yargs --save
 typings install  --global  dt~node dt~nconf --save
 start coding
 ezv
 ```
+Replace nconf by yargs
 
 ## Clone from Git 
 

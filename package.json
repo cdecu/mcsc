@@ -23,7 +23,7 @@
   "homepage": "https://github.com/cdecu/mcsc#readme",
   "dependencies": {
     "debug": "^2.2.0",
-    "nconf": "^0.8.4",
-    "typescript-debug": "^0.1.0"
+    "typescript-debug": "^0.1.0",
+    "yargs": "^6.2.0"
   }
 }
