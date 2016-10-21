@@ -1,3 +1,6 @@
+import {MinecraftWorld}  from "../lib/minecraft_worlds";
+import {MinecraftServer} from "../lib/minecraft_server";
+
 //----------------------------------------------------------------------------------------------------------------------
 /**
  * Command to be executed
@@ -7,7 +10,6 @@ export class Command {
     constructor(public cmd : string) {
     }
 }
-
 //----------------------------------------------------------------------------------------------------------------------
 /**
  * configuration class. Config is loaded from argv and/or configFile
@@ -16,15 +18,14 @@ export class Config {
     
     private static readonly _savedKeys_ : string[] = ["port",'welcomeMsg',"mcsjarsDir","worldsDir"];
     private static readonly _commands_  : string[] = ["start","list","backup"];
-    public static verboseLevel : number = 0;
 
     public hostname  : string   = "localhost";
     public port      : number   = 8080;
     public welcomeMsg: string   = "Hello geek";
     public mcsjarsDir: string   = "~/servers";
-    public mcsjars   : string[] = [];
+    public mcsjars   : MinecraftServer[] = [];
     public worldsDir : string   = "~/worlds";
-    public worlds    : string[] = [];
+    public worlds    : MinecraftWorld[] = [];
     public version   : string   = '0.0.0';
     public commands  : Command[] = [];
     
@@ -35,7 +36,6 @@ export class Config {
         let argv       : any    = Config.yargs();
         let showHelp   : boolean= argv.help;
         let configFile : string = argv.configFile || path.join(appRoot,"/config.json");
-        Config.verboseLevel=argv.logLevel;
     
         // load version
         let pjson = require('../package.json');
@@ -98,8 +98,8 @@ export class Config {
             console.log('\nConfig\n------');
             console.log(JSON.stringify(this,Config._savedKeys_,2));
             console.log('configFile: %s',configFile);
-            console.log('worlds: %s',JSON.stringify(this.worlds));
-            console.log('jars: %s',JSON.stringify(this.mcsjars));
+            console.log('worlds: %s',JSON.stringify(this.worlds,null,2));
+            console.log('jars: %s',JSON.stringify(this.mcsjars,null,2));
             console.log('');
             }
         
@@ -168,7 +168,6 @@ export class Config {
                         "type"     : 'boolean',
                         "global"   : true
                     })
-            .count('logLevel').alias('l', 'logLevel')
             .version().alias("v","version")
             .env({
                 "separator" : '__',
@@ -225,34 +224,31 @@ export class Config {
         return this;
     }
     //..................................................................................................................
+    //region Utility Function Debug/Error
     /**
      * show debug message
      * @param msg
      */
-    public Debug(msg:string) : void {
+    private Debug(msg:string) : void {
         if (this.applog)
             this.applog(msg);
-        else
-        if (Config.verboseLevel > 0)
-            console.log(msg)
     }
     /**
      * show error message
      * @param msg
      */
-    public Error(msg:string) : void {
+    private Error(msg:string) : void {
         if (this.applog)
             this.applog(msg);
         else
             console.log(msg);
     }
-    //..................................................................................................................
     /**
      * Convert ~/Dir into $HOME/Dir
      * @param filepath
      * @returns {string}
      */
-    public static expandTilde(filepath:string) : string {
+    private static expandTilde(filepath:string) : string {
         let home = require('os').homedir();
         let path = require('path');
         if (filepath.charCodeAt(0) === 126 /* ~ */) {
@@ -260,6 +256,7 @@ export class Config {
         } else
             return filepath;
         }
+    //endregion
     //..................................................................................................................
     /**
      * Load Worlds from worldsDir into worlds
@@ -273,7 +270,8 @@ export class Config {
         try {
             this.Debug('read dir '+dir);
             fs.readdirSync(dir).forEach((f) =>{
-                this.worlds.push(f);
+                let w = new MinecraftWorld(this.applog,this.worldsDir,f);
+                this.worlds.push(w);
                 });
             this.Debug('.. loaded !');
             return true;
@@ -295,7 +293,8 @@ export class Config {
         try {
             this.Debug('read dir '+dir);
             fs.readdirSync(dir).forEach((f) =>{
-                this.mcsjars.push(f);
+                let s=new MinecraftServer(this.applog,this.mcsjarsDir,f);
+                this.mcsjars.push(s);
             });
             this.Debug('.. loaded !');
             return true;
