@@ -1,13 +1,14 @@
-// TO TEST import {TraceClass} from "typescript-debug";
-// TO TEST @TraceClass({ tracePrefix: "mcsc" })
-
-
+//----------------------------------------------------------------------------------------------------------------------
+/**
+ * Command to be executed
+ */
 export class Command {
     public args : string[] = [];
     constructor(public cmd : string) {
     }
 }
 
+//----------------------------------------------------------------------------------------------------------------------
 /**
  * configuration class. Config is loaded from argv and/or configFile
  */
@@ -88,9 +89,11 @@ export class Config {
         if (!this.commands || this.commands.length==0)
             this.commands.push(new Command(Config._commands_[0]));
             
-        this.loadmcsJars();
+        // load Worlds and Server Jars directories
+        this.loadMcsJars();
         this.loadWorlds();
         
+        // Dump config iff
         if (argv.showConfig){
             console.log('\nConfig\n------');
             console.log(JSON.stringify(this,Config._savedKeys_,2));
@@ -100,6 +103,7 @@ export class Config {
             console.log('');
             }
         
+        // Terminate iff
         if (showHelp) {
             this.Debug('Exit after show Help');
             console.log('\nByeBye\n');
@@ -107,10 +111,10 @@ export class Config {
             }
         
         }
-    
+    //..................................................................................................................
     /**
-     * Parse argv params
-     * @returns {"nconf"}
+     * Parse argv params using yargs module
+     * @returns {"argv"}
      */
     public static yargs() : any {
         let yargv = require('yargs');
@@ -185,7 +189,8 @@ export class Config {
         return argv;
     }
     
-        
+    
+    //..................................................................................................................
     /**
      * simple copy only one level
      * @param src source object to be copied into this
@@ -219,7 +224,7 @@ export class Config {
             }   });
         return this;
     }
-    
+    //..................................................................................................................
     /**
      * show debug message
      * @param msg
@@ -231,7 +236,6 @@ export class Config {
         if (Config.verboseLevel > 0)
             console.log(msg)
     }
-    
     /**
      * show error message
      * @param msg
@@ -242,7 +246,12 @@ export class Config {
         else
             console.log(msg);
     }
-    
+    //..................................................................................................................
+    /**
+     * Convert ~/Dir into $HOME/Dir
+     * @param filepath
+     * @returns {string}
+     */
     public static expandTilde(filepath:string) : string {
         let home = require('os').homedir();
         let path = require('path');
@@ -251,7 +260,11 @@ export class Config {
         } else
             return filepath;
         }
-    
+    //..................................................................................................................
+    /**
+     * Load Worlds from worldsDir into worlds
+     * @returns {boolean}
+     */
     public loadWorlds() : boolean {
         this.Debug('load Worlds');
         let dir : string = Config.expandTilde(this.worldsDir);
@@ -260,7 +273,6 @@ export class Config {
         try {
             this.Debug('read dir '+dir);
             fs.readdirSync(dir).forEach((f) =>{
-                // TODO Take subfolder
                 this.worlds.push(f);
                 });
             this.Debug('.. loaded !');
@@ -270,8 +282,12 @@ export class Config {
             this.Error(ex.message);
             return false;
         }   }
-
-    public loadmcsJars() : boolean {
+    //..................................................................................................................
+    /**
+     * Load server jars from mcsjarsDir into mcsjars
+     * @returns {boolean}
+     */
+    public loadMcsJars() : boolean {
         this.Debug('load Jars');
         let dir : string = Config.expandTilde(this.mcsjarsDir);
         let fs = require('fs');
@@ -279,7 +295,6 @@ export class Config {
         try {
             this.Debug('read dir '+dir);
             fs.readdirSync(dir).forEach((f) =>{
-                // TODO Take only .jar
                 this.mcsjars.push(f);
             });
             this.Debug('.. loaded !');
