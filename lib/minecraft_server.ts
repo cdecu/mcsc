@@ -1,13 +1,20 @@
+import {IConfig,IMinecraftServer} from "../lib/interfaces";
+
 //----------------------------------------------------------------------------------------------------------------------
 /**
  * minecraft server param
  */
-export class MinecraftServer{
-    private IsValid   : boolean  = false;
-    private Version   : string   = '';
-    public properties : string[] = [];
+export class MinecraftServer implements  IMinecraftServer {
+    private applog      : any;
+    public  fullPath    : string;
+    private IsValid     : boolean  = false;
+    private Version     : string   = '';
+    public  properties  : string[] = [];
     
-    constructor(public applog : any , public rootFolder:string , public folder: string) {
+    constructor(public config : IConfig , public folder: string) {
+        let path = require('path');
+        this.applog     = config.applog;
+        this.fullPath   = path.join(MinecraftServer.expandTilde(this.config.mcserversDir),this.folder);
         this.load();
         }
     
@@ -36,6 +43,19 @@ export class MinecraftServer{
         else
             console.log(msg);
     }
+    /**
+     * Convert ~/Dir into $HOME/Dir
+     * @param filepath
+     * @returns {string}
+     */
+    private static expandTilde(filepath:string) : string {
+        let home = require('os').homedir();
+        let path = require('path');
+        if (filepath.charCodeAt(0) === 126 /* ~ */) {
+            return home ? path.join(home, filepath.slice(1)) : filepath;
+        } else
+            return filepath;
+        }
     //endregion
     //..................................................................................................................
     /**
@@ -43,13 +63,23 @@ export class MinecraftServer{
      * @returns {boolean}
      */
     public load() : boolean {
-        this.Debug('Load Server '+this.folder);
-        this.properties=[];
-        this.Version   ='';
+        let fs = require('fs');
+        let path = require('path');
+        this.Debug('Load Server '+this.fullPath);
         this.IsValid   = false;
-        
-        return this.IsValid;
-        }
-    
+        this.Version   ='';
+        this.properties=[];
+        try {
+            fs.readdirSync(this.fullPath).forEach((f) =>{
+                if (fs.statSync(path.join(this.fullPath,f)).isFile()) {
+this.Debug(f);
+                }});
+            return this.IsValid;
+            }
+        catch (ex) {
+            this.Error(ex.message);
+            return false;
+        }   }
+            
 }
 

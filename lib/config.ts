@@ -1,36 +1,35 @@
-import {MinecraftWorld}  from "../lib/minecraft_worlds";
-import {MinecraftServer} from "../lib/minecraft_server";
+import {IConfig,Command,IMinecraftServer,IMinecraftWorld} from "./interfaces";
+import {MinecraftWorld}  from "./minecraft_worlds";
+import {MinecraftServer} from "./minecraft_server";
 
-//----------------------------------------------------------------------------------------------------------------------
-/**
- * Command to be executed
- */
-export class Command {
-    public args : string[] = [];
-    constructor(public cmd : string) {
-    }
-}
+
 //----------------------------------------------------------------------------------------------------------------------
 /**
  * configuration class. Config is loaded from argv and/or configFile
+ * singleton class
  */
-export class Config {
+export class Config implements IConfig{
     
-    private static readonly _savedKeys_ : string[] = ["port",'welcomeMsg',"mcsjarsDir","worldsDir"];
+    private static instance: Config;
+    private static readonly _savedKeys_ : string[] = ["port",'welcomeMsg',"mcserversDir","worldsDir"];
     private static readonly _commands_  : string[] = ["start","list","backup"];
 
-    public hostname  : string   = "localhost";
-    public port      : number   = 8080;
-    public welcomeMsg: string   = "Hello geek";
-    public mcsjarsDir: string   = "~/servers";
-    public mcsjars   : MinecraftServer[] = [];
-    public worldsDir : string   = "~/worlds";
-    public worlds    : MinecraftWorld[] = [];
-    public version   : string   = '0.0.0';
-    public commands  : Command[] = [];
+    public hostname    : string   = "localhost";
+    public port        : number   = 8080;
+    public welcomeMsg  : string   = "Hello geek";
+    public mcserversDir: string   = "~/mcsc/Sservers";
+    public mcservers   : IMinecraftServer[] = [];
+    public worldsDir   : string   = "~/mcsc/Wworlds";
+    public worlds      : IMinecraftWorld[] = [];
+    public version     : string   = '0.0.0';
+    public commands    : Command[] = [];
     
     constructor(public applog : any , public appRoot : string) {
-
+    
+        if (Config.instance) {
+            return Config.instance;
+            }
+        
         let fs                  = require('fs');
         let path                = require('path');
         let argv       : any    = Config.yargs();
@@ -58,11 +57,11 @@ export class Config {
 
         // overide with argv
         let os = require("os");
-        this.hostname  = os.hostname();
-        this.port      = argv.port       || this.port;
-        this.welcomeMsg= argv.welcomeMsg || this.welcomeMsg;
-        this.mcsjarsDir= argv.mcsjarsDir || this.mcsjarsDir;
-        this.worldsDir = argv.worldsDir  || this.worldsDir;
+        this.hostname    = os.hostname();
+        this.port        = argv.port         || this.port;
+        this.welcomeMsg  = argv.welcomeMsg   || this.welcomeMsg;
+        this.mcserversDir= argv.mcserversDir || this.mcserversDir;
+        this.worldsDir   = argv.worldsDir    || this.worldsDir;
         
         // save new default to file
         if (argv.saveConfig) {
@@ -90,7 +89,7 @@ export class Config {
             this.commands.push(new Command(Config._commands_[0]));
             
         // load Worlds and Server Jars directories
-        this.loadMcsJars();
+        this.loadServers();
         this.loadWorlds();
         
         // Dump config iff
@@ -98,8 +97,8 @@ export class Config {
             console.log('\nConfig\n------');
             console.log(JSON.stringify(this,Config._savedKeys_,2));
             console.log('configFile: %s',configFile);
-            console.log('worlds: %s',JSON.stringify(this.worlds,null,2));
-            console.log('jars: %s',JSON.stringify(this.mcsjars,null,2));
+            console.log('worlds: %s',JSON.stringify(this.worlds,(key,value)=>{if(key == "config"){return undefined;}return value;},2));
+            console.log('servers: %s',JSON.stringify(this.mcservers,(key,value)=>{if(key == "config"){return undefined;}return value;},2));
             console.log('');
             }
         
@@ -109,7 +108,8 @@ export class Config {
             console.log('\nByeBye\n');
             process.exit(0)
             }
-        
+    
+        Config.instance = this;
         }
     //..................................................................................................................
     /**
@@ -122,6 +122,7 @@ export class Config {
             .usage('Minecraft server controller \nUsage: $0 [options] <command>')
             .example('$0 [options] list worlds')
             .example('$0 [options] start')
+            .example('$0 [options] list worlds start')
             //.command('list <objects...>','show objects')
             //.command('start', 'start servers')
             .option("p",{
@@ -136,7 +137,7 @@ export class Config {
                         "global"   : true
                     })
             .option("j",{
-                        "alias"    : 'mcsjarsDir',
+                        "alias"    : 'mcserversDir',
                         "describe" : 'Minecraft server jar directory',
                         "global"   : true
                     })
@@ -265,14 +266,16 @@ export class Config {
     public loadWorlds() : boolean {
         this.Debug('load Worlds');
         let dir : string = Config.expandTilde(this.worldsDir);
+        let path = require('path');
         let fs = require('fs');
         this.worlds = [];
         try {
             this.Debug('read dir '+dir);
             fs.readdirSync(dir).forEach((f) =>{
-                let w = new MinecraftWorld(this.applog,this.worldsDir,f);
-                this.worlds.push(w);
-                });
+                if (fs.statSync(path.join(dir,f)).isDirectory()) {
+                    let w = new MinecraftWorld(this,f);
+                    this.worlds.push(w);
+                }});
             this.Debug('.. loaded !');
             return true;
             }
@@ -282,20 +285,22 @@ export class Config {
         }   }
     //..................................................................................................................
     /**
-     * Load server jars from mcsjarsDir into mcsjars
+     * Load server from mcserversDir into mcservers
      * @returns {boolean}
      */
-    public loadMcsJars() : boolean {
-        this.Debug('load Jars');
-        let dir : string = Config.expandTilde(this.mcsjarsDir);
+    public loadServers() : boolean {
+        this.Debug('load Servers');
+        let dir : string = Config.expandTilde(this.mcserversDir);
+        let path = require('path');
         let fs = require('fs');
-        this.mcsjars = [];
+        this.mcservers = [];
         try {
             this.Debug('read dir '+dir);
             fs.readdirSync(dir).forEach((f) =>{
-                let s=new MinecraftServer(this.applog,this.mcsjarsDir,f);
-                this.mcsjars.push(s);
-            });
+                if (fs.statSync(path.join(dir,f)).isDirectory()) {
+                    let s = new MinecraftServer(this, f);
+                    this.mcservers.push(s);
+                }});
             this.Debug('.. loaded !');
             return true;
         }
