@@ -1,27 +1,33 @@
-import {IConfig,IMinecraftServer} from "../lib/interfaces";
+import { MinecraftControler } from './interfaces';
 
 //----------------------------------------------------------------------------------------------------------------------
 /**
  * minecraft server param
  */
-export class MinecraftServer implements  IMinecraftServer {
+export class MinecraftServer implements  MinecraftControler.IMinecraftServer {
+
     private applog      : any;
+    private config      : MinecraftControler.IConfig;
     public  fullPath    : string;
-    private IsValid     : boolean  = false;
-    private Version     : string   = '';
+    private isValid     : boolean  = false;
+    private version     : string   = '';
+    private jarFile     : string   = '';
     public  properties  : string[] = [];
+    public  whitelist   : {};
     
-    constructor(public config : IConfig , public folder: string) {
+    constructor(public controller : MinecraftControler.IController, public folder: string) {
         let path = require('path');
-        this.applog     = config.applog;
-        this.fullPath   = path.join(MinecraftServer.expandTilde(this.config.mcserversDir),this.folder);
+        this.applog     = controller.applog;
+        this.config     = controller.config;
+        this.fullPath   = path.join(MinecraftControler.expandTilde(this.config.mcserversDir),this.folder);
         this.load();
         }
     
     //..................................................................................................................
     //region getter/setter
-    public get version(): string  { return this.Version; };
-    public get isValid(): boolean { return this.IsValid; };
+    public get Version(): string  { return this.version; };
+    public get IsValid(): boolean { return this.isValid; };
+    public get JarFile(): string  { return this.jarFile; };
     //endregion
     //..................................................................................................................
     //region Utility Function Debug/Error
@@ -43,19 +49,6 @@ export class MinecraftServer implements  IMinecraftServer {
         else
             console.log(msg);
     }
-    /**
-     * Convert ~/Dir into $HOME/Dir
-     * @param filepath
-     * @returns {string}
-     */
-    private static expandTilde(filepath:string) : string {
-        let home = require('os').homedir();
-        let path = require('path');
-        if (filepath.charCodeAt(0) === 126 /* ~ */) {
-            return home ? path.join(home, filepath.slice(1)) : filepath;
-        } else
-            return filepath;
-        }
     //endregion
     //..................................................................................................................
     /**
@@ -63,23 +56,104 @@ export class MinecraftServer implements  IMinecraftServer {
      * @returns {boolean}
      */
     public load() : boolean {
-        let fs = require('fs');
-        let path = require('path');
-        this.Debug('Load Server '+this.fullPath);
-        this.IsValid   = false;
-        this.Version   ='';
-        this.properties=[];
+        this.Debug('Load Server ' + this.fullPath);
+        this.isValid    = false;
+        this.version    = '';
+        this.jarFile    = "";
+        this.properties = [];
         try {
+            let fs = require('fs');
+            let path = require('path');
             fs.readdirSync(this.fullPath).forEach((f) =>{
                 if (fs.statSync(path.join(this.fullPath,f)).isFile()) {
-this.Debug(f);
-                }});
-            return this.IsValid;
+                    let ext : string = path.extname(f);
+                    if (ext.toLowerCase()==='.jar') {
+                        this.jarFile = f;
+                        this.isValid = true;
+                    } else
+                    if (f.toLowerCase()==='server.properties') {
+                        this.properties.push(f);
+                    } else
+                    if (f.toLowerCase()==='whitelist.json') {
+                        let pjson = require(path.join(this.fullPath,f));
+                        this.whitelist=pjson;
+                    } else {
+                        this.Debug('.. '+f);
+                }   }   });
+            return this.isValid;
             }
         catch (ex) {
             this.Error(ex.message);
             return false;
         }   }
-            
+    //..................................................................................................................
+    /**
+     * test args
+     * @returns {args}
+     */
+    public test() : boolean {
+        this.Debug('test server:'+this.folder);
+        let fs   = require('fs');
+        let path = require('path');
+        this.isValid = true;
+        try {
+            // test server jar
+            let f = path.join(this.fullPath,this.jarFile);
+            if (fs.existsSync(f)) {
+                this.Debug('ok:jar:'+f);
+            }else{
+                this.Debug('err:missing jar');
+                this.isValid = false;
+                }
+            // test whitelistd.json
+            f = path.join(this.fullPath,'whitelist.json');
+            if (fs.existsSync(f)) {
+                this.Debug('ok:whitelist:'+f);
+            }else{
+                this.Debug('err:missing whitelist');
+                this.isValid = false;
+                }
+            // test whitelistd.json
+            f = path.join(this.fullPath,'eula.txt');
+            if (fs.existsSync(f)) {
+                this.Debug('ok:eula:'+f);
+            }else{
+                this.Debug('err:missing eula');
+                this.isValid = false;
+                }
+            if (this.isValid) {
+                console.log(this.folder + ' Valid\n');
+            } else {
+                console.log(this.folder + ' Invalid !');
+                console.log(JSON.stringify(this,MinecraftControler.stringifyFilter,2));
+                console.log('');
+                }
+            return this.isValid;
+            }
+        catch (ex) {
+            this.Error(ex.message);
+            return false;
+        }   }
+    //..................................................................................................................
+    /**
+     * test args
+     * @returns {args}
+     */
+    public start() : boolean {
+        this.Debug('start server:'+this.folder);
+        let fs   = require('fs');
+        let path = require('path');
+        try {
+            fs.readdirSync(this.fullPath).forEach((f) =>{
+                if (fs.statSync(path.join(this.fullPath,f)).isFile()) {
+                    this.Debug(f);
+                }});
+            return true;
+        }
+        catch (ex) {
+            this.Error(ex.message);
+            return false;
+        }   }
+    
 }
 

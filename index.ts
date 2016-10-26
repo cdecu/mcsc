@@ -1,17 +1,23 @@
 #!/usr/bin/env node
 
-import {Config} from "./lib/config";
+import {Controller} from "./lib/controller";
 
 let applog  = require('debug')('mcsc');
 let path    = require('path');
 
 // Provide a title to the process in `ps`
-let appRoot = path.resolve(__dirname);
+let appRoot : string = path.resolve(__dirname);
 process.title = 'mcsc';
 
 // Load Config
-let te = new Config(applog,appRoot.toString());
+let controller = new Controller(applog,appRoot);
 
-te.commands.forEach((key) => {
-    console.log('%s %s',key.cmd,key.args);
+controller.config.commands.forEach((cmd) => {
+    if (cmd.cmd!='start')
+        controller.executeCommand(cmd)
+    });
+
+controller.config.commands.forEach((cmd) => {
+    if (cmd.cmd=='start')
+        controller.start(cmd.args)
     });

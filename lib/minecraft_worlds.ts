@@ -1,16 +1,19 @@
-import {IConfig,IMinecraftWorld} from "../lib/interfaces";
+import { MinecraftControler } from './interfaces';
 
 //----------------------------------------------------------------------------------------------------------------------
 /**
  * minecraft world param
  */
-export class MinecraftWorld implements IMinecraftWorld{
+export class MinecraftWorld implements MinecraftControler.IMinecraftWorld{
     private applog      : any;
+    private config      : MinecraftControler.IConfig;
+
     public  fullPath    : string;
     
-    constructor(public config : IConfig , public folder: string) {
+    constructor(public controller : MinecraftControler.IController, public folder: string) {
         let path = require('path');
-        this.applog     = config.applog;
+        this.applog     = controller.applog;
+        this.config     = controller.config;
         this.fullPath   = path.join(MinecraftWorld.expandTilde(this.config.worldsDir),this.folder);
         this.load();
     }
